@@ -214,6 +214,7 @@ void q_reverseK(struct list_head *head, int k)
 
 struct list_head *merge_two_list(struct list_head *l, struct list_head *r)
 {
+    struct list_head *head = NULL;
     struct list_head **ptr = &head;
 
     while (l && r) {
