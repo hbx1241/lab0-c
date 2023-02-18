@@ -31,7 +31,6 @@ void q_free(struct list_head *l)
         element_t *ptr = list_first_entry(l, element_t, list);
         list_del(&ptr->list);
         q_release_element(ptr);
-        ptr = NULL;
     }
     // free head itself
     free(l);
@@ -85,8 +84,7 @@ element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
     if (!head || list_empty(head))
         return NULL;
     element_t *ptr = list_entry(head->next, element_t, list);
-    if (sp)
-        strncpy(sp, ptr->value, bufsize - 1);
+    snprintf(sp, bufsize, "%s", ptr->value);
     list_del(&ptr->list);
     return ptr;
 }
@@ -97,8 +95,7 @@ element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
     if (!head || list_empty(head))
         return NULL;
     element_t *ptr = list_entry(head->prev, element_t, list);
-    if (sp)
-        strncpy(sp, ptr->value, bufsize - 1);
+    snprintf(sp, bufsize, "%s", ptr->value);
     list_del(&ptr->list);
     return ptr;
 }
@@ -134,26 +131,34 @@ bool q_delete_mid(struct list_head *head)
     return true;
 }
 
+void q_sort(struct list_head *head);
 /* Delete all nodes that have duplicate string */
 bool q_delete_dup(struct list_head *head)
 {
     // https://leetcode.com/problems/remove-duplicates-from-sorted-list-ii/
-    if (!head || list_empty(head))
+    if (!head || list_empty(head) || list_is_singular(head))
         return false;
-
+    q_sort(head);
     struct list_head *ptr = head->next;
     while (ptr != head) {
         element_t *ecur = (element_t *) list_entry(ptr, element_t, list);
-        if (ptr->next != head) {
+        bool dup = false;
+        while (ptr->next != head) {
             element_t *enext =
                 (element_t *) list_entry(ptr->next, element_t, list);
             if (!strcmp(ecur->value, enext->value)) {
-                list_del(ptr->next);
+                dup = true;
+                list_del(&enext->list);
                 q_release_element(enext);
             } else
-                ptr = ptr->next;
-        } else
-            ptr = ptr->next;
+                break;
+        }
+        ptr = ptr->next;
+        if (dup) {
+            struct list_head *del = ptr->prev;
+            list_del(del);
+            q_release_element(list_entry(del, element_t, list));
+        }
     }
     return true;
 }
@@ -279,13 +284,13 @@ int q_descend(struct list_head *head)
 
     struct list_head *ptr = head->prev;
     while (ptr != head) {
-        for (struct list_head *i = head->next; i != ptr; i = i->next) {
+        for (struct list_head *i = head->next; i != ptr;) {
             element_t *ie = list_entry(i, element_t, list);
             element_t *pe = list_entry(ptr, element_t, list);
+            i = i->next;
             if (strcmp(ie->value, pe->value) < 0) {
-                struct list_head *del = i;
-                i = i->next;
-                list_del(del);
+                list_del(&ie->list);
+                q_release_element(ie);
             }
         }
         ptr = ptr->prev;
@@ -301,53 +306,29 @@ int q_merge(struct list_head *head)
         return 0;
 
     bool find = true;
-    struct list_head *ptr = head->next;
-    while (ptr != head) {
-        queue_contex_t *ptr_q = list_entry(ptr, queue_contex_t, chain);
-        struct list_head *ptr_e = ptr_q->q->next;
-        while (ptr_e != ptr_q->q) {
-            element_t *entry = list_entry(ptr_e, element_t, list);
-            printf("%s\n", entry->value);
-            ptr_e = ptr_e->next;
-        }
-        printf("//\n");
-        ptr = ptr->next;
-    }
+    queue_contex_t *f_contex = list_entry(head->next, queue_contex_t, chain);
     while (find) {
         struct list_head *min = NULL;
         char *str_min = NULL;
-        struct list_head *cur = head->next;
-        queue_contex_t *first_q = list_entry(head, queue_contex_t, chain);
+        struct list_head *cur = head->next->next;
         find = false;
         while (cur != head) {
             queue_contex_t *cur_q = list_entry(cur, queue_contex_t, chain);
-            printf("cur_q %p\n", cur_q);
-            printf("q %p\n", cur_q->q);
             if (cur_q->q && !list_empty(cur_q->q)) {
                 // first element of queue
                 element_t *cur_e = list_entry(cur_q->q->next, element_t, list);
-                printf("cur_e %p\n", cur_e);
-                printf("%p\n", cur_e->value);
-                printf("%s\n", cur_e->value);
                 if (!str_min || (strcmp(str_min, cur_e->value) > 0)) {
                     min = &cur_e->list;
                     str_min = cur_e->value;
                     find = true;
-                    printf("min: %s\n", str_min);
                 }
-            } else
-                free(cur_q->q);
+            }
             cur = cur->next;
         }
-        printf("break loop\n");
-        printf("%s\n", str_min);
         if (find) {
-            printf("1");
-            list_del(min);
-            printf("2");
-            list_add_tail(min, first_q->q);
-            printf("3\n");
+            list_move_tail(min, f_contex->q);
+            q_sort(f_contex->q);
         }
     }
-    return 0;
+    return 2;
 }
