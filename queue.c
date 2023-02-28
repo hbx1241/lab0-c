@@ -1,8 +1,8 @@
+#include "queue.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#include "queue.h"
+#include <time.h>
 
 /* Notice: sometimes, Cppcheck would find the potential NULL pointer bugs,
  * but some of them cannot occur. You can suppress them by adding the
@@ -32,12 +32,10 @@ void q_free(struct list_head *l)
         list_del(&ptr->list);
         q_release_element(ptr);
     }
-    // free head itself
+    // free head
     free(l);
 }
-
-/* Insert an element at head of queue */
-bool q_insert_head(struct list_head *head, char *s)
+bool q_insert(struct list_head *head, char *s, bool h)
 {
     if (!head || !s)
         return false;
@@ -50,54 +48,51 @@ bool q_insert_head(struct list_head *head, char *s)
         q_release_element(eptr);
         return false;
     }
-    strncpy(eptr->value, s, string_size + 1);
+    memcpy(eptr->value, s, string_size + 1);
     INIT_LIST_HEAD(&eptr->list);
-    list_add(&eptr->list, head);
-
+    if (h)
+        list_add(&eptr->list, head);
+    else
+        list_add_tail(&eptr->list, head);
     return true;
+}
+/* Insert an element at head of queue */
+bool q_insert_head(struct list_head *head, char *s)
+{
+    return q_insert(head, s, true);
 }
 
 /* Insert an element at tail of queue */
 bool q_insert_tail(struct list_head *head, char *s)
 {
-    if (!head || !s)
-        return false;
-    element_t *eptr = malloc(sizeof(element_t));
-    if (!eptr)
-        return false;
-    int string_size = strlen(s);
-    eptr->value = malloc(sizeof(char) * (string_size + 1));
-    if (!eptr->value) {
-        q_release_element(eptr);
-        return false;
-    }
-    strncpy(eptr->value, s, string_size + 1);
-    INIT_LIST_HEAD(&eptr->list);
-    list_add_tail(&eptr->list, head);
-
-    return true;
+    return q_insert(head, s, false);
 }
 
-/* Remove an element from head of queue */
-element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
+element_t *q_remove(struct list_head *head, char *sp, size_t bufsize, bool h)
 {
     if (!head || list_empty(head))
         return NULL;
-    element_t *ptr = list_entry(head->next, element_t, list);
-    snprintf(sp, bufsize, "%s", ptr->value);
+    element_t *ptr = h ? list_entry(head->next, element_t, list)
+                       : list_entry(head->prev, element_t, list);
+    int len = strlen(ptr->value);
+    int num = len > bufsize - 1 ? bufsize - 1 : len;
+    if (sp && num > 0) {
+        strncpy(sp, ptr->value, num);
+        sp[num] = '\0';
+    }
     list_del(&ptr->list);
     return ptr;
+}
+/* Remove an element from head of queue */
+element_t *q_remove_head(struct list_head *head, char *sp, size_t bufsize)
+{
+    return q_remove(head, sp, bufsize, true);
 }
 
 /* Remove an element from tail of queue */
 element_t *q_remove_tail(struct list_head *head, char *sp, size_t bufsize)
 {
-    if (!head || list_empty(head))
-        return NULL;
-    element_t *ptr = list_entry(head->prev, element_t, list);
-    snprintf(sp, bufsize, "%s", ptr->value);
-    list_del(&ptr->list);
-    return ptr;
+    return q_remove(head, sp, bufsize, false);
 }
 
 /* Return number of elements in queue */

@@ -42,9 +42,9 @@ extern int show_entropy;
  * OK as long as head field of queue_t structure is in first position in
  * solution code
  */
-#include "queue.h"
-
 #include "console.h"
+#include "queue.h"
+#include "queue_ext.h"
 #include "report.h"
 
 /* Settable parameters */
@@ -158,6 +158,78 @@ static bool do_new(int argc, char *argv[])
     return ok && !error_check();
 }
 
+static bool do_linux_lsort(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
+
+    int cnt = 0;
+    if (!current || !current->q)
+        report(3, "Warning: Calling sort on null queue");
+    else
+        cnt = q_size(current->q);
+    error_check();
+
+    if (cnt < 2)
+        report(3, "Warning: Calling sort on single node");
+    error_check();
+
+    set_noallocate_mode(true);
+    if (current && exception_setup(true))
+        q_linux_lsort(current->q);
+    exception_cancel();
+    set_noallocate_mode(false);
+
+    bool ok = true;
+    if (current && current->size) {
+        for (struct list_head *cur_l = current->q->next;
+             cur_l != current->q && --cnt; cur_l = cur_l->next) {
+            /* Ensure each element in ascending order */
+            /* FIXME: add an option to specify sorting order */
+            element_t *item, *next_item;
+            item = list_entry(cur_l, element_t, list);
+            next_item = list_entry(cur_l->next, element_t, list);
+            if (strcmp(item->value, next_item->value) > 0) {
+                report(1, "ERROR: Not sorted in ascending order");
+                ok = false;
+                break;
+            }
+        }
+    }
+
+    q_show(3);
+    return ok && !error_check();
+}
+static bool do_shuffle(int argc, char *argv[])
+{
+    if (argc != 1) {
+        report(1, "%s takes no arguments", argv[0]);
+        return false;
+    }
+
+    int cnt = 0;
+    if (!current || !current->q)
+        report(3, "Warning: Calling sort on null queue");
+    else
+        cnt = q_size(current->q);
+    error_check();
+
+    if (cnt < 2)
+        report(3, "Warning: Calling sort on single node");
+    error_check();
+
+    set_noallocate_mode(true);
+    if (current && exception_setup(true))
+        q_shuffle(current->q);
+    exception_cancel();
+    set_noallocate_mode(false);
+
+    bool ok = true;
+    q_show(3);
+    return ok && !error_check();
+}
 /* TODO: Add a buf_size check of if the buf_size may be less
  * than MIN_RANDSTR_LEN.
  */
@@ -1006,6 +1078,9 @@ static void console_init()
         "[str]");
     ADD_COMMAND(reverse, "Reverse queue", "");
     ADD_COMMAND(sort, "Sort queue in ascending order", "");
+    ADD_COMMAND(linux_lsort, "Sort queue in ascending order using list_sort",
+                "");
+    ADD_COMMAND(shuffle, "Shuffle queue by Fisher-Yates shuffle algorithm", "");
     ADD_COMMAND(size, "Compute queue size n times (default: n == 1)", "[n]");
     ADD_COMMAND(show, "Show queue contents", "");
     ADD_COMMAND(dm, "Delete middle node in queue", "");
